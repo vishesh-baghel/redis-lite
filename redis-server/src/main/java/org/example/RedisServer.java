@@ -3,7 +3,10 @@ package org.example;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.security.Key;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -18,6 +21,9 @@ public class RedisServer {
         ExecutorService executor = Executors.newFixedThreadPool(cpuCores);
         try(ServerSocket serverSocket = new ServerSocket(6379)) {
             serverSocket.setReuseAddress(true);
+            if (serverSocket.isBound()) {
+                System.out.println("Redis server is listening on port: 6379, now you can send commands from the redis client.");
+            }
             while (true) {
                 Socket clientSocket = serverSocket.accept();
                 executor.submit(() -> {
@@ -39,7 +45,8 @@ public class RedisServer {
              BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()))) {
 
             String command = reader.readLine(); // Read client command
-            String response = processCommand(command); // Process the command
+            List<String> args = parseArguments(command);
+            String response = processCommand(args);
 
             writer.write(response + "\n"); // Send response back to client
             writer.flush();
@@ -50,11 +57,63 @@ public class RedisServer {
         }
     }
 
-    private static String processCommand(String command) {
-        if ("GET key".equals(command)) {
-            return "Value for key";
+    private static List<String> parseArguments(String command) {
+        return List.of(command.split(" "));
+    }
+
+    private static String processCommand(List<String> args) {
+        String command = args.get(0);
+        System.out.println("[" + Thread.currentThread() + "] Received args: " + args);
+        if ("GET".equalsIgnoreCase(command)) {
+            return handleGet(args.get(1));
+        } else if ("SET".equalsIgnoreCase(command)){
+            if (args.size() > 3) {
+                return handleSetWithExpiration(args.get(1), args.get(2), Integer.parseInt(args.get(3)));
+            } else {
+                return handleSet(args.get(1), args.get(2));
+            }
+        } else if ("ECHO".equalsIgnoreCase(command)) {
+            return handleEcho(args.get(1));
+        } else if ("PING".equalsIgnoreCase(command)) {
+            return handlePing();
         } else {
-            return "Unknown command";
+            return handleUnknownCommand(command);
         }
+    }
+
+    private static String handleGet(String key) {
+       boolean isExpired = keyToExpirationTime.get(key) != null && keyToExpirationTime.get(key).isBefore(Instant.now());
+       String response = storage.getOrDefault(key, "-1");
+       if (isExpired || response.equalsIgnoreCase("-1")) {
+           return "Either the key is expired or the value for this key doesn't exist";
+       } else {
+           return response;
+       }
+    }
+
+    private static String handleSetWithExpiration(String key, String value, int expireAfterMs) {
+       keyToExpirationTime.put(key, Instant.now().plus(expireAfterMs, ChronoUnit.MILLIS));
+       return handleSet(key, value);
+    }
+
+    private static String handleSet(String key, String value) {
+        storage.put(key, value);
+        return "Added to the storage";
+    }
+
+    private static String handleEcho(String command) {
+        System.out.println("[" + Thread.currentThread() + "] Return: " + command);
+        return "+" + command;
+    }
+
+    private static String handlePing() {
+        System.out.println("[" + Thread.currentThread() + "] Return +PONG");
+        return "+PONG";
+    }
+
+    private static String handleUnknownCommand(String command) {
+        String response = "Unknown command: " + command;
+        System.out.println("[" + Thread.currentThread() + "] " + response);
+        return response;
     }
 }

@@ -1,6 +1,7 @@
 package org.example;
 
 import java.io.*;
+import java.net.ConnectException;
 import java.net.Socket;
 
 public class RedisClient {
@@ -9,12 +10,22 @@ public class RedisClient {
              BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
              BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()))) {
 
-            String command = "GET key"; // Redis-like command
-            writer.write(command + "\n"); // Send command to server
-            writer.flush();
+             BufferedReader userInputReader = new BufferedReader(new InputStreamReader(System.in));
+             if (socket.isConnected()) {
+                 System.out.println("Connected to the redis server");
+             }
+             while (true) {
+                System.out.print("Enter command: ");
+                String command = userInputReader.readLine();
 
-            String response = reader.readLine(); // Receive response from server
-            System.out.println("Response from server: " + response);
+                writer.write(command + "\n"); // Send command to server
+                writer.flush();
+
+                String response = reader.readLine(); // Receive response from server
+                System.out.println("Response from server: " + response);
+             }
+        } catch (ConnectException connectException) {
+            System.out.println(connectException.getMessage() + ": The redis server is down. please start the redis server before starting the redis client.");
         }
     }
 }

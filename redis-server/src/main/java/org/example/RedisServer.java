@@ -33,7 +33,6 @@ public class RedisServer {
                         System.out.println("IO exception in the incoming connection handler");
                     }
                     });
-                    executor.shutdown();
                 } else {
                     System.out.println("the client is not connected");
                 }
@@ -45,19 +44,17 @@ public class RedisServer {
     }
 
     private static void handleIncomingConnection(Socket clientSocket) throws IOException {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()))) {
+        try (clientSocket; BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()), 1024);
+             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()), 1024)) {
 
             String command = reader.readLine(); // Read client command
             List<String> args = parseArguments(command);
             String response = processCommand(args);
 
-            writer.write(response + "\n"); // Send response back to client
+            writer.write((response + "\n")); // Send response back to client
             writer.flush();
         } catch (IOException e) {
             System.out.println("IO exception in incoming connection handler");
-        } finally {
-            clientSocket.close();
         }
     }
 

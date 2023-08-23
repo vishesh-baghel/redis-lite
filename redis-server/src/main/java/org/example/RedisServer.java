@@ -3,7 +3,6 @@ package org.example;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.security.Key;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -26,17 +25,22 @@ public class RedisServer {
             }
             while (true) {
                 Socket clientSocket = serverSocket.accept();
-                executor.submit(() -> {
+                if (clientSocket.isConnected()) {
+                    executor.submit(() -> {
                     try {
                         handleIncomingConnection(clientSocket);
                     } catch (IOException e) {
                         System.out.println("IO exception in the incoming connection handler");
                     }
-                });
+                    });
+                    executor.shutdown();
+                } else {
+                    System.out.println("the client is not connected");
+                }
             }
 
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            System.out.println("IO exception in the main method: " + e.getMessage());
         }
     }
 
@@ -51,7 +55,7 @@ public class RedisServer {
             writer.write(response + "\n"); // Send response back to client
             writer.flush();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            System.out.println("IO exception in incoming connection handler");
         } finally {
             clientSocket.close();
         }
@@ -64,6 +68,7 @@ public class RedisServer {
     private static String processCommand(List<String> args) {
         String command = args.get(0);
         System.out.println("[" + Thread.currentThread() + "] Received args: " + args);
+
         if ("GET".equalsIgnoreCase(command)) {
             return handleGet(args.get(1));
         } else if ("SET".equalsIgnoreCase(command)){
@@ -98,6 +103,7 @@ public class RedisServer {
 
     private static String handleSet(String key, String value) {
         storage.put(key, value);
+        System.out.println("size of storage: " + storage.size());
         return "Added to the storage";
     }
 

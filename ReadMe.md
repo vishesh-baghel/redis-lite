@@ -60,7 +60,7 @@ Clone the project
   git clone https://github.com/vishesh-baghel/redis-lite.git
 ```
 
-Go to the project directory
+Go to the project directory and 
 
 ```bash
   cd RedisLite
